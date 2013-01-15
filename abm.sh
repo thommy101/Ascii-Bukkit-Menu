@@ -14,7 +14,7 @@ if [ -z $abmdir ]; then
 	echo "Please enter the path where ABM is installed to."
 	echo "For example it may be $dir"
 	read -p "Path: " path
-	sed -i '3s#'abmdir='[^ ]*''#'abmdir="$path"'#g' abm.sh
+	sed -i '3s#'abmdir='[^ ]*''#'abmdir="$path"'#g' $path/abm.sh
 	sed -i '2s#'abmdir='[^ ]*''#'abmdir=$path'#g' $path/include/scripts/log.sh
 	sed -i '2s#'abmdir='[^ ]*''#'abmdir=$path'#g' $path/include/scripts/menu.sh
 	sed -i '2s#'abmdir='[^ ]*''#'abmdir=$path'#g' $path/include/scripts/status.sh
@@ -80,11 +80,6 @@ else
 	          [ -d "$bukkitdir/$x-offline" ] || mkdir "$bukkitdir/$x-offline"
 		done
 	fi
-	# If screen size too small, adjust. 
-	if [[ $cols -lt 120 || $lines -lt 50 ]]; then
-		printf '\033[8;50;120t'
-		sleep 0.5 
-	fi
 
 	if [[ $1 = "--start" ]]; then
 		startServer
@@ -93,6 +88,23 @@ else
 		export silent=$1
 		stopServer
 		exit 0
+    elif [[ $1 = "--restart" ]]; then
+        restartServer
+        exit 0
+    elif [[ $1 = "--backup" ]]; then
+        world-backup
+        exit 0
+    elif [[ $1 = "--fullbackup" ]]; then
+        export silent="--stop"
+        stopServer
+        full-backup
+        startServer
+        exit 0
+	fi
+    # If screen size too small, adjust. 
+	if [[ $cols -lt 120 || $lines -lt 50 ]]; then
+		printf '\033[8;50;120t'
+		sleep 0.5 
 	fi
 
 	manybukkits=`ls $bukkitdir/craftbukkit*.jar|wc -l`
@@ -110,9 +122,7 @@ else
 	fi
 	
 	# Start the screen sessions.
-	createLogrotate
 	createLogsdir
-	createUpdate
 	screenConf
 	screen -c $screenconf
 fi

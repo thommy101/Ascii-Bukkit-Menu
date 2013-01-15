@@ -3,9 +3,11 @@ dir="$( cd -P "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 abmdir=
 vars="$abmdir/include/config/vars"
 abmconfig="$abmdir/include/config/abm.conf"
+#backup="$abmdir/include/config/backup"
 
 source $vars 2>/dev/null
 source $abmconfig 2>/dev/null
+#source $backup 2>/dev/null
 
 #Ascii Art
 banner () {
@@ -52,6 +54,12 @@ depCheck () {
     echo "ABM can not continue."
     exit 0
   fi
+  if [[ -z `which python` ]]; then
+    echo "Fatal Error!"
+    echo "python not found."
+    echo "ABM can not continue."
+    exit 0
+  fi
   if [[ -z `which wget` ]]; then
     echo "Warning!"
     echo "wget not found."
@@ -63,13 +71,6 @@ depCheck () {
     echo "Warning!"
     echo "zip not found."
     echo "Please see http://www.info-zip.org/"
-    echo "ABM can continue, however you may experiance problems."
-    sleep 2
-  fi
-  if [[ -z `which logrotate` ]]; then
-    echo "Warning!"
-    echo "logrotate not found."
-    echo "Please see https://fedorahosted.org/logrotate/"
     echo "ABM can continue, however you may experiance problems."
     sleep 2
   fi
@@ -89,18 +90,6 @@ createLogsdir () {
   fi
 }
 
-# Create LogRoatate Config. New one everytime in case abm.conf has changed.
-createLogrotate () {
-cat > "$lrconf" <<EOF
-"$slog" {
-copytruncate
-rotate 20
-compress
-olddir $logs
-}
-EOF
-}
-
 # Script to create include/config/abm.conf. This file is a dependency.
 setupConfig () {
 clear
@@ -109,11 +98,6 @@ echo "----==== ABM Configuration Setup ====----"
 echo
 echo "This will guide you through the setup for Ascii Bukkit Menu."
 echo "If you decide not to answer a question, defaults will be used."
-echo 
-echo "Would you like to use the Recommended, Beta or Development version"
-echo "of CraftBukkit? [rb/beta/dev]"
-echo
-read -p "Bukkit Branch: " bukkitBranch
 echo
 echo "Please enter the absolute path to your Bukkit installation."
 echo "Example: /opt/craftbukkit"
@@ -166,75 +150,14 @@ read -p "[y/n] " ramdisk
     echo
     read -p "Worlds: " worlds
   fi
-
   if [[ $sarbin ]]; then
     echo
     echo "Using Sar ABM will show network usage. Please enter the intferace name."
-    echo "For example. Linux=eth0 BSD/Solaris/Arch=bge0 *check dmesg"
+   echo "For example. Linux=eth0 BSD/Solaris/Arch=bge0 *check dmesg"
     echo "If you don't know just hit enter."
     read -p "Interface Name: " $eth
   fi
-
-####### Start of Backup - Not Complete #######
-#echo
-#echo "ABM can manage backups of your Minecraft worlds"
-#echo "This is achieved though a backup script and cron job."
-#echo "Backups are saved in a zip format compatible with WorldEdit Snapshots."
-#echo "See http://wiki.sk89q.com/wiki/WorldEdit/Snapshots"
-#read -p "Would you like to enable backups? [y/n] " backup
-#if [[ $backup =~ ^(yes|y|Y)$ ]]; then
-#  read -p "Where would you like to store backups?: " backupdir
-#  cat > "$abmdir/include/scripts/backup.sh" <<EOF
-#  filename=`date '+%Y-%m-%d-%H-%M-%S'`
-#  backupdir=$backupdir
-#  log=$bukkitdir/logs/backup.txt
-#  players=`echo "QUERY" |nc localhost 25566 |grep "PLAYERCOUNT" |awk '{ print $2 }'`
-#  saveall="save-all"
-#  saveoff="save-off"
-#  saveon="save-on"
-
-#  if [ $players -gt 0 ]; then
-#    echo "`date '+%Y:%m:%d-%H:%M:%S'` - Players Detected, Starting Backup" >> $log
-#    screen -S bukkit-server -p 0 -X eval 'stuff '"\"$saveall\""'\015'
-#    screen -S bukkit-server -p 0 -X eval 'stuff '"\"$saveoff\""'\015'
-#    cd $bukkitdir/Worlds
-#    sleep 5
-#    for x in ${worlds[*]}
-#      do
-#      if [ ! -d $backupdir/$x ]; then
-#       mkdir -p $backupdir/$x
-#      fi
-#      zip -6 -v -r $backupdir/$x/$filename $x >> $log
-#      find $backupdir/$x -type f -mtime +2 -exec rm {} \; >> $log
-#    done
-#  screen -S bukkit-server -p 0 -X eval 'stuff '"\"$saveon\""'\015'
-#  cd -
-#  elif [ $players = 0 ]; then
-#   echo "`date '+%Y:%m:%d-%H:%M:%S'` - No Players Connected, Skipping Backup"  >> $log
-#  fi
-#  exit 0
-#EOF
-#fi
-####### End of Backup #######
 clear
-
-# End of Questions. Time to check for missing variables.
-if [[ -z $bukkitBranch ]]; then
-    echo
-    echo "No CraftBukkit Branch set. Assuming Recommended."
-    bukkitBranch=recommended
-elif [[ $bukkitBranch ]]; then
-  if [[ $bukkitBranch =~ ^(recommended|Recommended|r|R|rb|RB|rB|Rb)$ ]]; then
-    bukkitBranch=recommended
-  elif [[ $bukkitBranch =~ ^(beta|Beta|BETA|b|B)$ ]]; then
-    bukkitBranch=beta
-  elif [[ $bukkitBranch =~ ^(development|Development|dev|Dev|DEV|d|D)$ ]]; then
-    bukkitBranch=development
-  else
-      bukkitBranch=recommended
-  fi
-    echo "Craftbukkit Branch set to:" $bukkitBranch
-fi
 
 if [[ -z $bukkitdir ]]; then
   echo
@@ -317,7 +240,7 @@ sleep 2
 clear
 echo "Please Review:"
 echo
-echo "CraftBukkit Branch: "$bukkitBranch 
+#echo "CraftBukkit Branch: "$bukkitBranch 
 echo "CraftBukkit Directory: "$bukkitdir
 echo "Java Arguments: "$jargs
 echo "Display Refresh: "$tick
@@ -334,8 +257,6 @@ read -p "Use this Config? [y/n] " answer
  [yY] | [yY][eE][Ss] )
 cat > "$abmdir/include/config/abm.conf" <<EOF
 abmversion=0.2.8
-
-bukkitBranch=$bukkitBranch
 
 # Absolute path to your CraftBukkit installation. Example:
 #bukkitdir=/opt/minecraft
@@ -364,6 +285,53 @@ shutdownTimer="$shutdownTimer"
 EOF
 clear
 echo "$abmconfig written successfully"
+
+
+####### Start of Backup - Not Complete #######
+echo
+echo "ABM can manage backups of your Minecraft worlds"
+echo "This is achieved though a backup script and cron job."
+echo "Backups are saved in a tar.gz format."
+read -p "Would you like to enable world backups? [y/n] " wbackup
+if [[ $wbackup =~ ^(yes|y|Y)$ ]]; then
+  echo
+  echo "Please enter the names of the worlds that should be copied to and from ramdisk to localdisk"
+  echo "Use exact names as they show in $bukkitdir separated by space."
+  echo
+  read -p "Worlds: " backupworlds
+  read -p "Where would you like to store the world backups?: " backupdir
+  cat >> "$vars" << EOF
+
+# Backup destination
+backupdir="$backupdir"
+
+# All worlds to backup
+backupworlds="$backupworlds"
+EOF
+
+
+  echo
+  read -p "Do you want to backup in [h]ours or [m]inutes? " backuphm
+  read -p "Schedule the backup every XX Hours/Minutes: " backupinterval
+    case $backuphm in
+    [hH] )
+      (crontab -l; echo "0 */$backupinterval * * * $abmdir/abm.sh --backup") | crontab -
+      ;;
+    [mM] )
+      (crontab -l; echo "*/$backupinterval * * * * $abmdir/abm.sh --backup") | crontab -
+      ;;
+    esac
+fi
+echo
+read -p "Would you like to enable full daily backups? [y/n] " fbackup
+if [[ $fbackup =~ ^(yes|y|Y)$ ]]; then
+  echo
+  read -p "Which hour do you want to run the backup? " backuph
+  read -p "Which minute do you want to run the backup? " backupm
+  (crontab -l; echo "$backupm $backuph * * * $abmdir/abm.sh --fullbackup") | crontab -
+fi
+####### End of Backup #######
+
 ;; 
 [nN] | [nN][oO] )
     echo
@@ -377,15 +345,6 @@ echo "$abmconfig written successfully"
 *) echo "Invalid Input"
 ;;
 esac
-}
-
-#Create update tracker..
-createUpdate () {
-if [[ ! -f $abmdir/include/config/update ]]; then
-cat > "$abmdir/include/config/update" <<EOF
-0
-EOF
-fi
 }
 
 #Create screen.conf 
@@ -467,51 +426,6 @@ checkServer () {
   bukkitPID=`ps -ef |grep "java $jargs -jar $bukkitdir/craftbukkit" | grep -v grep | awk '{ print $2 }'`
 }
 
-# Update Bukkit to Latest.
-update () {
-  stopServer
-  if [[ ! $bukkitPID ]]; then
-    rm $bukkitdir/craftbukkit*.jar
-    if [[ $bukkitBranch = "recommended" ]]; then
-      bukkiturl="http://cbukk.it/craftbukkit.jar"
-      wget --progress=dot:mega $bukkiturl -O "$bukkitdir/craftbukkit.jar"
-    elif [[ $bukkitBranch = "development" ]]; then
-      bukkiturl="http://cbukk.it/craftbukkit-dev.jar"
-      wget --progress=dot:mega $bukkiturl -O "$bukkitdir/craftbukkit-dev.jar"
-    elif [[ $bukkitBranch = "beta" ]]; then
-      bukkiturl="http://cbukk.it/craftbukkit-beta.jar"
-      wget --progress=dot:mega $bukkiturl -O "$bukkitdir/craftbukkit-beta.jar"
-    else
-      echo "Bukkit Branch not set."
-      echo "Please check your ABM Config."
-    fi
-    cat /dev/null > $slog
-    clear
-    if [[ $craftbukkit ]]; then
-      echo $txtgrn"Update Successful!"$txtrst
-      sleep 1
-    fi
-    startServer
-  elif [[ $bukkitPID ]]; then
-    echo -e "Craftbukkit Server Running"
-    echo -e "Update Aborted"
-    sleep 5
-  fi
-}
-
-
-
-# Install MineQuery Plugin. Restart Server.
-installmq () {
-  clear
-  wget -m -nd --progress=dot:mega -P $abmdir/include/temp/ https://github.com/downloads/vexsoftware/minequery/Minequery-1.5.zip
-  unzip -o $abmdir/include/temp/Minequery-1.5.zip -d $bukkitdir/plugins
-  rm $abmdir/include/temp/Minequery-1.5.zip
-  clear
-  stopServer
-  startServer
-}
-
 
 # Start Bukkit Server
 startServer () {
@@ -521,11 +435,10 @@ startServer () {
   # Need to recheck for screen PID for bukket-server session. In case it has been stopped.
   serverscreenpid=`screen -ls |grep bukkit-server |cut -f 1 -d .`
   if [[ -z $bukkitPID ]]; then
-    logrotate -f -s $abmdir/include/temp/rotate.state $abmdir/include/config/rotate.conf
-    rm $abmdir/include/temp/rotate.state
     cd $bukkitdir
     if [[ -z $serverscreenpid ]]; then
       screen -d -m -S bukkit-server
+      sleep 1
     fi
     #if using ramdisk copy from local to ramdisk.
     if [[ $ramdisk = true ]]; then
@@ -576,10 +489,10 @@ stopServer () {
       if [[ -n $shutdownNotify ]]; then
         screen -S bukkit-server -p 0 -X eval 'stuff '"\"say $shutdownNotify\""'\015'
         if [[ -n $shutdownTimer ]]; then
-          screen -S bukkit-server -p 0 -X eval 'stuff '"\"say $shutdownTimer seconds untill server shutdown\""'\015'
           sleep $shutdownTimer
         fi
       fi
+      screen -S bukkit-server -p 0 -X eval 'stuff "kickall Server stopped"\015'
       screen -S bukkit-server -p 0 -X eval 'stuff "stop"\015'
       while [[ $bukkitPID ]]; do
         printf "Bukkit Shutdown in Progress.."
@@ -651,22 +564,28 @@ cleanTmp () {
   rm -f /tmp/sarinfo-$abmid*
   rm -f /tmp/plugins-$abmid*
   rm -f /tmp/build-$abmid*
-  rm -f /tmp/minequeryinfo-$abmid*
+  rm -f /tmp/slotsUsed-$abmid*
+  rm -f /tmp/slotsMax-$abmid*
+  rm -f /tmp/players-$abmid*
+  rm -f /tmp/motd-$abmid*
   rm -f /tmp/abmstmp-$abmid*
   rm -f /tmp/donetmp-$abmid*
   rm -f /tmp/bukkitpid-$abmid*
 }
 
 forcecleanTmp () {
-# force remove all temp files. 
+# force remove all temp files.
   rm -f /tmp/topinfo-*
   rm -f /tmp/freeinfo-*
   rm -f /tmp/sarinfo-*
   rm -f /tmp/plugins-*
   rm -f /tmp/build-*
-  rm -f /tmp/minequeryinfo-*
+  rm -f /tmp/slotsUsed-*
+  rm -f /tmp/slotsMax-*
+  rm -f /tmp/players-*
+  rm -f /tmp/motd-*
   rm -f /tmp/abmstmp-*
-  rm -f /tmp/donetmp-
+  rm -f /tmp/donetmp-*
 }
 
 # Quit Function
@@ -677,78 +596,36 @@ quitFunction () {
   exit 0
 }
 
-# Get Craftbukkit Version Info
-getVersion () {
-if [[ $bukkitPID ]]; then
-  if [[ ! -f $buildtmp ]]; then
-    buildtmp=`mktemp "/tmp/build-$abmid.XXXXXX"`
-    grep "This server is running CraftBukkit" $slog |tail -1 | awk '{print $10, $11, $12}' > $buildtmp
-  fi
-  build=`cat $buildtmp`
-fi
-}
+getData () {
+  full_info=`$abmdir/include/scripts/get_data.py`
+  buildtmp=`mktemp "/tmp/build-$abmid.XXXXXX"`
+  plugintmp=`mktemp "/tmp/plugins-$abmid.XXXXXX"`
+  slotsUsedtmp=`mktemp "/tmp/slotsUsed-$abmid.XXXXXX"`
+  slotsMaxtmp=`mktemp "/tmp/slotsMax-$abmid.XXXXXX"`
+  playerstmp=`mktemp "/tmp/players-$abmid.XXXXXX"`
+  motdtmp=`mktemp "/tmp/motd-$abmid.XXXXXX"`
 
-# Get Plugin Info
-getPlugins () {
-  if [[ ! -f $plugintmp ]]; then
-    plugintmp=`mktemp "/tmp/plugins-$abmid.XXXXXX"`
-    grep "Plugins" $slog |head -1 |awk '{ $1=""; $2=""; $3=""; $4=""; print $0 }' > $plugintmp
-  fi
+  echo $full_info | awk -v FS="|" '{print $13}' > $buildtmp
+  echo $full_info | awk -v FS="|" '{print $9}' | sed -e "s/'//g" | sed -e "s/\[//g" | sed -e "s/\]//g" > $plugintmp
+  echo $full_info | awk -v FS="|" '{print $4}' > $slotsUsedtmp
+  echo $full_info | awk -v FS="|" '{print $8}' > $slotsMaxtmp
+  echo $full_info | awk -v FS="|" '{print $6}' | sed -e "s/'//g" | sed -e "s/\[//g" | sed -e "s/\]//g" > $playerstmp
+  echo $full_info | awk -v FS="|" '{print $2}' > $motdtmp
+
+  build=`cat $buildtmp`
   plugins=`cat $plugintmp`
-  if [[ -z $plugins ]]; then
-    screen -S bukkit-server -p 0 -X eval 'stuff '"plugins"'\015'
-    grep "Plugins" $slog |head -1 |awk '{ $1=""; $2=""; $3=""; $4=""; print $0 }' > $plugintmp
-    plugins=`cat $plugintmp`
-    while [[ -z $plugins ]]; do
-      sleep 1
-      grep "Plugins" $slog |head -1 |awk '{ $1=""; $2=""; $3=""; $4=""; print $0 }' > $plugintmp
-      plugins=`cat $plugintmp`
-    done
-  fi
+  slotsUsed=`cat $slotsUsedtmp`
+  slotsMax=`cat $slotsMaxtmp`
+  players=`cat $playerstmp`
+  motd=`cat $motdtmp`
 }
 
  getDone () {
      donetmp=`mktemp "/tmp/donetmp-$abmid.XXXXXX"`
-     grep "Done ([0-9]\{1,\}\.[0-9]\{1,\}s)\!" $slog | awk '{print $5}' | sed 's/(//g;s/)//g;s/!//g' > $donetmp
+     grep "Done" $slog | awk '{print $5}'| tail -1 | sed 's/(//g;s/)//g;s/!//g' > $donetmp
      doneTime=`cat $donetmp`
      rm -f $donetmp
  }
-
-mqConnect () {
-  exec 3<>/dev/tcp/localhost/25566
-  echo -e "QUERY" >&3
-  cat <&3
-}
-
-findplayers () {
-
-socksend ()
-{
-  echo -ne "\xFE" >&5 &
-}
-
-sockread ()
-{
-  LENGTH="$1"
-  RETURN=`dd bs=$1 count=1 <&5 2> /dev/null`
-  exec 5>&- 
-}
-
-# try to connect
-if ! exec 5<> /dev/tcp/localhost/25565; then
-  exit 1
-fi
-
-# send request
-socksend
-
-# read up to 1024 bytes for success. This is to deal with long MOTDs
-sockread 1024
-
-slotsUsed=`echo -e "$RETURN" |awk -F"\xA7" '{print $2}'`
-slotsMax=`echo "$RETURN" |awk -F"\xA7" '{print $3}'`
-motd=`echo -e "$RETURN" |awk -F"\xFF\x4D" '{print $2}'|awk -F"\xA7" '{print $1}'`
-}
 
 abmSessions () {
   # Count Up ABM Sessions on Server. Both Active and Inactive.
@@ -806,15 +683,11 @@ showInfo () {
   totalSwapFree=`sed -n 4p $freeinfo |awk '{print $4}'`
   diskuse=`df -h $bukkitdir|grep -e "%" |grep -v "Filesystem"|grep -o '[0-9]\{1,3\}%'`
   stime=`date`
+
+  if [[ -z $doneTime ]];
+    getData
+  fi
   
-  # Check for MineQuery Plugin & Set $playerCount & $players
-   if [[ -f "$bukkitdir/plugins/Minequery.jar" ]]; then
-     mineQueryinfo=`mktemp "/tmp/minequeryinfo-$abmid.XXXXXX"`
-     mqConnect > $mineQueryinfo
-     players=`grep PLAYERLIST $mineQueryinfo | grep PLAYERLIST | awk -F"PLAYERLIST" '{print $2}'|sed -e 's/^[ \t]*//'`
-     playerCount=`grep PLAYERCOUNT $mineQueryinfo | grep PLAYERCOUNT|awk -F "PLAYERCOUNT" '{print $2}'`
-     rm -f $mineQueryinfo
-   fi
   clear
   echo -e $txtbld"Ascii Bukkit Menu: "$txtrst$abmversion$txtbld "Session ID: "$txtrst$abmid
   if [[ -n "$latestabm" ]]; then
@@ -849,20 +722,16 @@ showInfo () {
     echo
   fi
   if [[ $bukkitPID ]]; then
-    findplayers
-     if [[ -z $doneTime ]]; then
+    if [[ -z $doneTime ]]; then
       getDone
-    else
-        getVersion
-        getPlugins
-        echo -e $txtbld"Build:"$txtrst $build
-        echo -e $txtbld"Plugins"$txtrst $plugins
-     fi
-        echo -e $txtbld"CPU Usage:"$txtrst $bukkitCpuTop"%"
-        echo -e $txtbld"Mem Usage:"$txtrst $bukkitMemTop"%"
-        echo -e $txtbld"Connected:"$txtrst $slotsUsed"/"$slotsMax
-        echo -e $txtbld"Players:"$txtrst $playerCount $players
-        echo -e $txtbld"MOTD:"$txtrst $motd
+    fi
+    echo -e $txtbld"Build:"$txtrst $build
+    echo -e $txtbld"Plugins"$txtrst $plugins
+    echo -e $txtbld"CPU Usage:"$txtrst $bukkitCpuTop"%"
+    echo -e $txtbld"Mem Usage:"$txtrst $bukkitMemTop"%"
+    echo -e $txtbld"Connected:"$txtrst $slotsUsed"/"$slotsMax
+    echo -e $txtbld"Players:"$txtrst $players
+    echo -e $txtbld"MOTD:"$txtrst $motd
   fi
   echo
   echo -e $txtbld"System Info"$txtrst
@@ -881,16 +750,37 @@ cleanTmp
 unset bukkitPID
 }
 
-
-# Check for Bukkit & ABM Update once a day
-checkUpdate () {
-  lastup=`cat $abmdir/include/config/update`
-  if [[ $lastup -lt `date "+%y%m%d"` ]]; then
-    echo -e $txtred"Checking for Bukkit and ABM Update..."$txtrst
-    wget --quiet -r http://bit.ly/vvizIg -O  $abmdir/include/temp/latestabm
-    date "+%y%m%d" > $abmdir/include/config/update
-    sleep 2
-    latestabm=`cat $abmdir/include/temp/latestabm`
+world-backup () {
+createLogsdir
+getData
+if [[ -n $players ]]; then
+  echo "`date '+%Y-%m-%d_%H-%M'` - Players Detected, Starting Backup" >> $logs/backup.log
+  screen -S bukkit-server -p 0 -X eval 'stuff "save-all"\015'
+  screen -S bukkit-server -p 0 -X eval 'stuff "save-off"\015'
+  sleep 5
+  name=`date '+%Y-%m-%d_%H-%M'`
+  if [[ ! -d $backupdir ]]; then
+    mkdir $backupdir/small
   fi
+  cd $bukkitdir
+  tar -zcvf $backupdir/small/worlds-$name.tar.gz $backupworlds >> $logs/backup.log
+  screen -S bukkit-server -p 0 -X eval 'stuff "save-on"\015'
+else
+  echo "`date '+%Y-%m-%d_%H-%M'` - No Players Connected, Skipping Backup"  >> $logs/backup.log
+fi
 }
+
+full-backup () {
+createLogsdir
+echo "`date '+%Y-%m-%d_%H-%M'` - Starting full backup" >>$logs/backup.log
+name=`date '+%Y-%m-%d_%H-%M'`
+if [[ ! -d $backupdir ]]; then
+  mkdir $backupdir/full
+fi
+cd $backupdir/full
+tar -zcvf ./full-$name.tar.gz $bukkitdir >> $logs/backup.log
+mv $slog $logs/server-$name.log
+mv $logs/backup.log $logs/backup-$name.log
+}
+
 # The End
