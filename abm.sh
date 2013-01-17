@@ -122,7 +122,9 @@ else
 	fi
 	
 	# Start the screen sessions.
+    createLogrotate
 	createLogsdir
+    createUpdate
 	screenConf
 	screen -c $screenconf
 fi
