@@ -74,6 +74,13 @@ depCheck () {
     echo "ABM can continue, however you may experiance problems."
     sleep 2
   fi
+  if [[ -z `which logrotate` ]]; then
+    echo "Warning!"
+    echo "logrotate not found."
+    echo "Please see http://fedorahosted.org/logrotate/"
+    echo "ABM can continue, however you may experiance problems."
+    sleep 2
+  fi
   if [[ -z `which md5sum` ]]; then
     echo "Warning!"
     echo "md5sum not found."
@@ -81,6 +88,18 @@ depCheck () {
     echo "ABM can continue, however you may experiance problems."
     sleep 2
   fi
+}
+
+# Create LogRoatate Config. New one everytime in case abm.conf has changed.
+createLogrotate () {
+cat > "$lrconf" <<EOF
+"$slog" {
+copytruncate
+rotate 20
+compress
+olddir $logs
+}
+EOF
 }
 
 #Create directory for logs to go in.
@@ -98,6 +117,11 @@ echo "----==== ABM Configuration Setup ====----"
 echo
 echo "This will guide you through the setup for Ascii Bukkit Menu."
 echo "If you decide not to answer a question, defaults will be used."
+echo
+echo "Would you like to use the Recommended, Beta or Development version"
+echo "of CraftBukkit? [rb/beta/dev]"
+echo
+read -p "Bukkit Branch: " bukkitBranch
 echo
 echo "Please enter the absolute path to your Bukkit installation."
 echo "Example: /opt/craftbukkit"
@@ -153,11 +177,28 @@ read -p "[y/n] " ramdisk
   if [[ $sarbin ]]; then
     echo
     echo "Using Sar ABM will show network usage. Please enter the intferace name."
-   echo "For example. Linux=eth0 BSD/Solaris/Arch=bge0 *check dmesg"
+    echo "For example. Linux=eth0 BSD/Solaris/Arch=bge0 *check dmesg"
     echo "If you don't know just hit enter."
     read -p "Interface Name: " $eth
   fi
 clear
+
+if [[ -z $bukkitBranch ]]; then
+    echo
+    echo "No CraftBukkit Branch set. Assuming Recommended."
+    bukkitBranch=recommended
+elif [[ $bukkitBranch ]]; then
+  if [[ $bukkitBranch =~ ^(recommended|Recommended|r|R|rb|RB|rB|Rb)$ ]]; then
+    bukkitBranch=recommended
+  elif [[ $bukkitBranch =~ ^(beta|Beta|BETA|b|B)$ ]]; then
+    bukkitBranch=beta
+  elif [[ $bukkitBranch =~ ^(development|Development|dev|Dev|DEV|d|D)$ ]]; then
+    bukkitBranch=development
+  else
+      bukkitBranch=recommended
+  fi
+    echo "Craftbukkit Branch set to:" $bukkitBranch
+fi
 
 if [[ -z $bukkitdir ]]; then
   echo
@@ -240,7 +281,7 @@ sleep 2
 clear
 echo "Please Review:"
 echo
-#echo "CraftBukkit Branch: "$bukkitBranch 
+echo "CraftBukkit Branch: "$bukkitBranch 
 echo "CraftBukkit Directory: "$bukkitdir
 echo "Java Arguments: "$jargs
 echo "Display Refresh: "$tick
@@ -257,6 +298,8 @@ read -p "Use this Config? [y/n] " answer
  [yY] | [yY][eE][Ss] )
 cat > "$abmdir/include/config/abm.conf" <<EOF
 abmversion=0.2.8
+
+bukkitBranch=$bukkitBranch
 
 # Absolute path to your CraftBukkit installation. Example:
 #bukkitdir=/opt/minecraft
@@ -347,6 +390,15 @@ fi
 esac
 }
 
+-#Create update tracker..
+createUpdate () {
+if [[ ! -f $abmdir/include/config/update ]]; then
+  cat > "$abmdir/include/config/update" <<EOF
+0
+EOF
+fi
+}
+
 #Create screen.conf 
 screenConf () {
 screenversion=`screen -v| awk '{ print $3 }'`
@@ -426,6 +478,37 @@ checkServer () {
   bukkitPID=`ps -ef |grep "java $jargs -jar $bukkitdir/craftbukkit" | grep -v grep | awk '{ print $2 }'`
 }
 
+# Update Bukkit to Latest.
+update () {
+  stopServer
+  if [[ ! $bukkitPID ]]; then
+    rm $bukkitdir/craftbukkit*.jar
+    if [[ $bukkitBranch = "recommended" ]]; then
+      bukkiturl="http://cbukk.it/craftbukkit.jar"
+      wget --progress=dot:mega $bukkiturl -O "$bukkitdir/craftbukkit.jar"
+    elif [[ $bukkitBranch = "development" ]]; then
+      bukkiturl="http://cbukk.it/craftbukkit-dev.jar"
+      wget --progress=dot:mega $bukkiturl -O "$bukkitdir/craftbukkit-dev.jar"
+    elif [[ $bukkitBranch = "beta" ]]; then
+      bukkiturl="http://cbukk.it/craftbukkit-beta.jar"
+      wget --progress=dot:mega $bukkiturl -O "$bukkitdir/craftbukkit-beta.jar"
+    else
+      echo "Bukkit Branch not set."
+      echo "Please check your ABM Config."
+    fi
+    cat /dev/null > $slog
+    clear
+    if [[ $craftbukkit ]]; then
+      echo $txtgrn"Update Successful!"$txtrst
+      sleep 1
+    fi
+    startServer
+  elif [[ $bukkitPID ]]; then
+    echo -e "Craftbukkit Server Running"
+    echo -e "Update Aborted"
+    sleep 5
+  fi
+}
 
 # Start Bukkit Server
 startServer () {
@@ -435,6 +518,8 @@ startServer () {
   # Need to recheck for screen PID for bukket-server session. In case it has been stopped.
   serverscreenpid=`screen -ls |grep bukkit-server |cut -f 1 -d .`
   if [[ -z $bukkitPID ]]; then
+    logrotate -f -s $abmdir/include/temp/rotate.state $abmdir/include/config/rotate.conf
+    rm $abmdir/include/temp/rotate.state
     cd $bukkitdir
     if [[ -z $serverscreenpid ]]; then
       screen -d -m -S bukkit-server
@@ -684,7 +769,7 @@ showInfo () {
   diskuse=`df -h $bukkitdir|grep -e "%" |grep -v "Filesystem"|grep -o '[0-9]\{1,3\}%'`
   stime=`date`
 
-  if [[ -z $doneTime ]];
+  if [[ -z $doneTime ]]; then
     getData
   fi
   
@@ -750,6 +835,17 @@ cleanTmp
 unset bukkitPID
 }
 
+# Check for Bukkit & ABM Update once a day
+checkUpdate () {
+  lastup=`cat $abmdir/include/config/update`
+  if [[ $lastup -lt `date "+%y%m%d"` ]]; then
+    echo -e $txtred"Checking for Bukkit and ABM Update..."$txtrst
+    wget --quiet -r http://bit.ly/vvizIg -O  $abmdir/include/temp/latestabm
+    date "+%y%m%d" > $abmdir/include/config/update
+    sleep 2
+    latestabm=`cat $abmdir/include/temp/latestabm`
+  fi
+}
 world-backup () {
 createLogsdir
 getData
